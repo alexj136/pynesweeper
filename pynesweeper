@@ -1,0 +1,70 @@
+#!/usr/bin/python
+import curses
+
+class Square:
+    def __init__(self, has_mine):
+        self.has_mine = has_mine
+        self.revealed = False
+
+def main(stdscr):
+
+    # Init curses
+    stdscr.clear()
+    curses.noecho()
+    curses.cbreak()
+    stdscr.keypad(True)
+
+    cursor_row = 0
+    cursor_col = 0
+
+    grid = [[Square(False), Square(False), Square(False), Square(False), Square(False)],\
+            [Square(False), Square(False), Square(False), Square(False), Square(False)],\
+            [Square(False), Square(False), Square(True) , Square(False), Square(False)],\
+            [Square(False), Square(False), Square(False), Square(False), Square(False)],\
+            [Square(False), Square(False), Square(False), Square(False), Square(False)],\
+            ]
+
+    disp_grid(cursor_row, cursor_col, grid, stdscr)
+    while True:
+        char = stdscr.getch()
+        if char == curses.KEY_LEFT:
+            cursor_col = cursor_col - 1
+        elif char == curses.KEY_RIGHT:
+            cursor_col = cursor_col + 1
+        elif char == curses.KEY_UP:
+            cursor_row = cursor_row - 1
+        elif char == curses.KEY_DOWN:
+            cursor_row = cursor_row + 1
+        else:
+            break
+        disp_grid(cursor_row, cursor_col, grid, stdscr)
+
+    # Deinit curses
+    curses.nocbreak()
+    stdscr.keypad(False)
+    curses.echo()
+    curses.endwin()
+
+def disp_grid(cursor_row, cursor_col, grid, stdscr):
+    for x in range(len(grid)):
+        line = ""
+        for y in range(len(grid[x])):
+            if x == cursor_row and y == cursor_col:
+                if grid[x][y].revealed and grid[x][y].has_mine:
+                    line = line + "M"
+                elif grid[x][y].revealed and not grid[x][y].has_mine:
+                    line = line + "O"
+                else:
+                    line = line + "X"
+            else:
+                if grid[x][y].revealed and grid[x][y].has_mine:
+                    line = line + "m"
+                elif grid[x][y].revealed and not grid[x][y].has_mine:
+                    line = line + "o"
+                else:
+                    line = line + "x"
+        stdscr.addstr(x, 0, line)
+    stdscr.refresh()
+
+curses.wrapper(main)
+exit()
