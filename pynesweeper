@@ -3,6 +3,9 @@ import curses
 from random import randrange
 
 class Square:
+    """
+    Represents a square in the minesweeper grid
+    """
     def __init__(self):
         self.has_mine = False
         self.revealed = False
@@ -24,22 +27,29 @@ class Grid:
         Create a minesweeper Grid, with specified numbers of rows, columns and
         mines.
         """
-        self.exploded = False
-        self.num_mines = mines
         if mines > rows * cols: raise Exception("Too many mines")
         if rows < 2 or cols < 2: raise Exception("Grid too small")
+        if mines < 2: raise Exception("Not enough mines")
+        self.exploded = False
+        self.num_mines = mines
         self.grid = [[Square() for x in range(cols)] for x in range(rows)]
         self.lay_mines(mines)
 
     def char_to_show_at(self, row, col):
-            if self.grid[row][col].has_flag:
-                return "F"
-            elif not self.grid[row][col].revealed:
-                return "."
-            elif self.grid[row][col].has_mine:
-                return "*"
-            else:
-                return str(self.num_adjacent_mines(row, col))
+        """
+        Determine what character should represent the given cell. Must be
+        implemented at the grid level as opposed to the square level, because
+        information about the adjacent cells is required.
+        """
+        if self.grid[row][col].has_flag:
+            return "F"
+        elif not self.grid[row][col].revealed:
+            return "."
+        elif self.grid[row][col].has_mine:
+            return "*"
+        else:
+            num_adjacents = self.num_adjacent_mines(row, col)
+            return " " if num_adjacents == 0 else str(num_adjacents)
 
     def lay_mines(self, mines):
         """
@@ -58,21 +68,12 @@ class Grid:
 
     @property
     def num_erroneous_flags(self):
-        count = 0
-        for each_row in self.grid:
-            for square in each_row:
-                if square.has_erroneous_flag:
-                    count = count + 1
-        return count
+        return sum([c.has_erroneous_flag for cs in self.grid for c in cs])
 
     @property
     def num_unflagged_mines(self):
-        count = self.num_mines
-        for each_row in self.grid:
-            for square in each_row:
-                if square.is_found_mine:
-                    count = count - 1
-        return count
+        return self.num_mines - \
+                sum([c.is_found_mine for cs in self.grid for c in cs])
 
     def num_adjacent_mines(self, row, col):
         """
@@ -82,7 +83,8 @@ class Grid:
                 self.adjacent_indices(row, col)))
 
     def flag_at(self, row, col):
-        self.grid[row][col].has_flag = not self.grid[row][col].has_flag
+        if not self.grid[row][col].revealed:
+            self.grid[row][col].has_flag = not self.grid[row][col].has_flag
 
     def step_at(self, row, col):
         if self.grid[row][col].has_flag or self.grid[row][col].revealed:
@@ -152,13 +154,11 @@ class Grid:
         else:
             return GAME_IN_PROGRESS
 
-
 GAME_LOST = 0
 GAME_IN_PROGRESS = 1
 GAME_WON = 2
 
 def main(stdscr):
-
     # Init curses
     stdscr.clear()
     curses.noecho()
