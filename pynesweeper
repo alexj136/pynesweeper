@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import curses
-import random
+from random import randrange
 
 class Square:
     def __init__(self):
@@ -28,14 +28,11 @@ class Grid:
         """
         Lay the given number of mines on the Grid.
         """
-        if mines == 0: return
-        rand_row = random.randint(0, len(self.grid) - 1)
-        rand_col = random.randint(0, len(self.grid[0]) - 1)
-        if self.grid[rand_row][rand_col].has_mine:
-            self.lay_mines(mines)
-        else:
-            self.grid[rand_row][rand_col].has_mine = True
-            self.lay_mines(mines - 1)
+        indices = [(r, c) for r in range(self.rows) for c in range(self.cols)]
+        for x in range(mines):
+            index = randrange(len(indices))
+            self.grid[indices[index][0]][indices[index][1]].has_mine = True
+            indices.remove(index)
 
     @property
     def rows(self): return len(self.grid)
@@ -53,6 +50,20 @@ class Grid:
                         else str(self.num_adjacent_mines(row_no, col_no))))
             output = output + line + "\n"
         return output
+
+    def num_adjacent_mines(self, row, col):
+        """
+        Count the number of mines adjacent to the given (row, col) index.
+        """
+        return sum(map(lambda rc: self.grid[rc[0], rc[1]].has_mine, \
+                adjacent_indices(row, col)))
+
+    def step(self, row, col):
+        if not (self.grid[row][col].revealed or self.grid[row][col].has_mine):
+            self.grid[row][col].revealed = True
+            for (rw, cl) in self.adjacent_indices(row, col):
+                self.step(rw, cl)
+        return
 
     def adjacent_indices(self, row, col):
         """
@@ -87,149 +98,13 @@ class Grid:
         elif row == self.rows - 1 and col > 0 and col < self.cols - 1:
             return [(row - 1, col - 1), (row - 1, col), (row - 1, col + 1), \
                     (row, col - 1), (row, col + 1)]
-        # Center
+        # Center area
         elif row > 0 and row < self.rows - 1 and \
                 col > 0 and col < self.cols - 1:
             return [(row - 1, col - 1), (row - 1, col), (row - 1, col + 1), \
                     (row, col - 1), (row, col + 1), (row + 1, col - 1), \
                     (row + 1, col), (row + 1, col + 1)]
         else: raise Exception("Index out of range")
-
-    def num_adjacent_mines(self, row, col):
-        # Top left corner
-        if row == 0 and col == 0:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row][col + 1], \
-                    self.grid[row + 1][col], \
-                    self.grid[row + 1][col + 1]]))
-        # Bottom left corner
-        elif row == self.rows - 1 and col == 0:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row - 1][col], \
-                    self.grid[row - 1][col + 1], \
-                    self.grid[row][col + 1]]))
-        # Top right corner
-        elif row == 0 and col == self.cols - 1:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row][col - 1], \
-                    self.grid[row + 1][col - 1], \
-                    self.grid[row + 1][col]]))
-        # Bottom right corner
-        elif row == self.rows - 1 and col == self.cols - 1:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row - 1][col - 1], \
-                    self.grid[row - 1][col], \
-                    self.grid[row][col - 1]]))
-        # Left edge
-        elif row > 0 and row < self.rows - 1 and col == 0:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row - 1][col], \
-                    self.grid[row - 1][col + 1], \
-                    self.grid[row][col + 1], \
-                    self.grid[row + 1][col], \
-                    self.grid[row + 1][col + 1]]))
-        # Right edge
-        elif row > 0 and row < self.rows - 1 and col == self.cols - 1:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row - 1][col - 1], \
-                    self.grid[row - 1][col], \
-                    self.grid[row][col - 1], \
-                    self.grid[row + 1][col - 1], \
-                    self.grid[row + 1][col]]))
-        # Top edge
-        elif row == 0 and col > 0 and col < self.cols - 1:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row][col - 1], \
-                    self.grid[row][col + 1], \
-                    self.grid[row + 1][col - 1], \
-                    self.grid[row + 1][col], \
-                    self.grid[row + 1][col + 1]]))
-        # Bottom edge
-        elif row == self.rows - 1 and col > 0 and col < self.cols - 1:
-            return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row - 1][col - 1], \
-                    self.grid[row - 1][col], \
-                    self.grid[row - 1][col + 1], \
-                    self.grid[row][col - 1], \
-                    self.grid[row][col + 1]]))
-        # Center
-        elif row > 0 and row < self.rows - 1 and \
-                col > 0 and col < self.cols - 1:
-                return sum(map(lambda c: c.has_mine, [ \
-                    self.grid[row - 1][col - 1], \
-                    self.grid[row - 1][col], \
-                    self.grid[row - 1][col + 1], \
-                    self.grid[row][col - 1], \
-                    self.grid[row][col + 1], \
-                    self.grid[row + 1][col - 1], \
-                    self.grid[row + 1][col], \
-                    self.grid[row + 1][col + 1]]))
-        else: raise Exception("Index out of range")
-
-    def step(self, row, col):
-        if self.grid[row][col].revealed or self.grid[row][col].has_mine: return
-        else:
-            self.grid[row][col].revealed = True
-            # Top left corner
-            if row == 0 and col == 0:
-                self.step(row, col + 1)
-                self.step(row + 1, col)
-                self.step(row + 1, col + 1)
-            # Bottom left corner
-            elif row == self.rows - 1 and col == 0:
-                self.step(row - 1, col)
-                self.step(row - 1, col + 1)
-                self.step(row, col + 1)
-            # Top right corner
-            elif row == 0 and col == self.cols - 1:
-                self.step(row, col - 1)
-                self.step(row + 1, col - 1)
-                self.step(row + 1, col)
-            # Bottom right corner
-            elif row == self.rows - 1 and col == self.cols - 1:
-                self.step(row - 1, col - 1)
-                self.step(row - 1, col)
-                self.step(row, col - 1)
-            # Left edge
-            elif row > 0 and row < self.rows - 1 and col == 0:
-                self.step(row - 1, col)
-                self.step(row - 1, col + 1)
-                self.step(row, col + 1)
-                self.step(row + 1, col)
-                self.step(row + 1, col + 1)
-            # Right edge
-            elif row > 0 and row < self.rows - 1 and col == self.cols - 1:
-                self.step(row - 1, col - 1)
-                self.step(row - 1, col)
-                self.step(row, col - 1)
-                self.step(row + 1, col - 1)
-                self.step(row + 1, col)
-            # Top edge
-            elif row == 0 and col > 0 and col < self.cols - 1:
-                self.step(row, col - 1)
-                self.step(row, col + 1)
-                self.step(row + 1, col - 1)
-                self.step(row + 1, col)
-                self.step(row + 1, col + 1)
-            # Bottom edge
-            elif row == self.rows - 1 and col > 0 and col < self.cols - 1:
-                self.step(row - 1, col - 1)
-                self.step(row - 1, col)
-                self.step(row - 1, col + 1)
-                self.step(row, col - 1)
-                self.step(row, col + 1)
-            # Center
-            elif row > 0 and row < self.rows - 1 and \
-                    col > 0 and col < self.cols - 1:
-                self.step(row - 1, col - 1)
-                self.step(row - 1, col)
-                self.step(row - 1, col + 1)
-                self.step(row, col - 1)
-                self.step(row, col + 1)
-                self.step(row + 1, col - 1)
-                self.step(row + 1, col)
-                self.step(row + 1, col + 1)
-            else: raise Exception("Index out of range")
 
 def main(stdscr):
 
@@ -267,5 +142,5 @@ def main(stdscr):
     curses.echo()
     curses.endwin()
 
-curses.wrapper(main)
-exit()
+if __name__ == "__main__":
+    curses.wrapper(main)
