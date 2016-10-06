@@ -1,77 +1,211 @@
 #!/usr/bin/python
+
+################################################################################
+#                                                                              #
+# This is a python implementation of the classic minesweeper game, playable    #
+# on the command-line. On Mac an Linux, run with:                              #
+#                                                                              #
+#     ./pynesweeper                                                            #
+#                                                                              #
+# On Windows, run with (assuming python is installed and added to your path).  #
+#                                                                              #
+#     python pynesweeper                                                       #
+#                                                                              #
+# Once in-game, you can quit at any time by pressing 'q'. Navigate the grid    #
+# with the arrow keys. Flag or unflag a mine with the spacebar, and reveal a   #
+# square with enter. You cannot reveal a flagged square.                       #
+#                                                                              #
+# When you win or lose, an appropriate message is displayed. You must quit     #
+# with 'q' and launch the game again in order to play a new game.              #
+#                                                                              #
+# The source code is written to be easily understood, so if you want to change #
+# the number of rows or columns in the game, it should be easy to figure out   #
+# how.                                                                         #
+#                                                                              #
+# Happy minesweeping!                                                          #
+#                                                                              #
+# Copyright 2016 Alexander Jeffery                                             #
+#                                                                              #
+################################################################################
+
+# Curses is a library that provides functions for creating interfaces on a
+# command-line. These functions will allow us to draw a minesweeper grid on the
+# command-line and interact with it using the keyboard.
 import curses
+
+# We use a function called randrange from the random library. This allows us to
+# generate random numbers, which we use to decide where the mines go.
 from random import randrange
 
 class Square:
     """
-    Represents a square in the minesweeper grid
+    Represents a square in the minesweeper grid.
+
+    There are 3 fundamental properties of a square and they are all boolean -
+    whether or not it has a mine, whether or not it has been revealed by the
+    player, and whether or not the player has placed a flag on it. Thus the
+    Square class has three boolean fields that store this information. It also
+    has two functions that used to determine other boolean properties that can
+    be derived from the 3 fundamental ones.
+
     """
     def __init__(self):
+        """
+        Create a new Square, assigning initial values for the 3 initial
+        properties to this Square object.
+        """
         self.has_mine = False
         self.revealed = False
         self.has_flag = False
+
     @property
     def is_found_mine(self):
+        """
+        Is this square a mine that has been found (i.e. flagged by the player)?
+        """
         return self.has_mine and self.has_flag
+
     @property
     def has_erroneous_flag(self):
+        """
+        Has this square been flagged by the player incorrectly? I.e. is it
+        flagged by the player as having a mine, when it does not in fact have a
+        mine?
+        """
         return (not self.has_mine) and self.has_flag
 
 class Grid:
     """
-    Represents a minesweeper grid. Does not contain any UI info, just the basic
-    data model.
+    Represents a minesweeper grid.
+
+    Objects of this class do not contain any interface information, but simply
+    represent the basic properties of a minesweeper grid. These include:
+        - A 2-dimensional array (list) of Squares
+        - A boolean (True or False) that tells us if the user has revealed a
+          mine (i.e. lost the game). False while they haven't lost, True when
+          they have.
+        - An integer telling us how many mines are in the grid.
     """
     def __init__(self, rows, cols, mines):
         """
         Create a minesweeper Grid, with specified numbers of rows, columns and
         mines.
         """
+
+        # If more mines were specified than there are squares, this doesn't make
+        # sense, so quit and tell the user what happened.
         if mines > rows * cols: raise Exception("Too many mines")
+
+        # If the grid is smaller than 2x2, it won't be much fun, so again tell
+        # the user what happened
         if rows < 2 or cols < 2: raise Exception("Grid too small")
+
+        # Having less than 2 mines makes for a boring game. Quit if this is the
+        # case.
         if mines < 2: raise Exception("Not enough mines")
+
+        # To start with, the user has not exploded a mine
         self.exploded = False
+
+        # Remember how many mines the user asked for - we use this to determine
+        # if the user has won after each move they make
         self.num_mines = mines
+
+        # Create the grid with the specified dimensions
         self.grid = [[Square() for x in range(cols)] for x in range(rows)]
+
+        # Lay the specified number of mines in the gird
         self.lay_mines(mines)
 
     def char_to_show_at(self, row, col):
         """
-        Determine what character should represent the given cell. Must be
-        implemented at the grid level as opposed to the square level, because
-        information about the adjacent cells is required.
+        Determine what character should represent the given cell on the
+        interface.
+
+        The parameters row & col specify the Square in question.
+
+        We have to implement this at the Grid level as opposed to the Square
+        level, because an individual Square does not know how many Squares with
+        mines surround it - we need to look at the Grid as a whole.
         """
+
+        # If the Square has a flag, we represent it with the letter F.
         if self.grid[row][col].has_flag:
             return "F"
+
+        # Otherwise, if it isn't revealed, represent it with a full-stop.
         elif not self.grid[row][col].revealed:
             return "."
+
+        # If it isn't flagged and is revealed, and has a mine, show a star.
         elif self.grid[row][col].has_mine:
             return "*"
+
+        # Otherwise, it must be revealed, not flagged, and not have a mine. In
+        # this case, it should show a number that says how many Squares with
+        # mines surround it (or be blank if the number is zero).
         else:
+            # First, calculate how many mines are adjacent to this cell
             num_adjacents = self.num_adjacent_mines(row, col)
+
+            # Then, if it is zero, show a blank space. Otherwise show the
+            # appropriate number.
             return " " if num_adjacents == 0 else str(num_adjacents)
 
     def lay_mines(self, mines):
         """
-        Lay the given number of mines on the Grid.
+        This function lays the given number of mines on the Grid. It does this
+        by generating a coordinate within the grid using the random number
+        function that we imported, and putting a mine in that spot (by changing
+        the has_mine field in the Square at that coordinate to True).
         """
+
+        # Here we create a list containting pairs of integers. There is one pair
+        # for every possible Grid coordinate. For example, in a 2x2 Grid, the
+        # generated list is [(0, 0), (0, 1), (1, 0), (1, 1)].
         indices = [(r, c) for r in range(self.rows) for c in range(self.cols)]
+
+        # Then, for every mine that the user asks for, we randomly pick one of
+        # those pairs from our list (removing it from the list so that we don't
+        # try to place a mine there more than once), and place a mine at the
+        # Square it points at.
         for x in range(mines):
+            # Take a random pair out of the list, and store it in a variable rc.
             rc = indices.pop(randrange(len(indices)))
+
+            # Set the has_mine field at the Sqaure pointed at by out rc pair to
+            # True.
             self.grid[rc[0]][rc[1]].has_mine = True
 
     @property
-    def rows(self): return len(self.grid)
+    def rows(self):
+        """
+        How many rows of squares does this Grid have?
+        """
+        return len(self.grid)
 
     @property
-    def cols(self): return len(self.grid[0])
+    def cols(self):
+        """
+        How many columns of squares does this Grid have?
+        """
+        return len(self.grid[0])
 
     @property
     def num_erroneous_flags(self):
+        """
+        Count the total number of erroneously placed flags in this grid. The
+        player cannot win while this number is greater than zero.
+        """
         return sum([c.has_erroneous_flag for cs in self.grid for c in cs])
 
     @property
     def num_unflagged_mines(self):
+        """
+        Count the total number of unflagged mines in this grid. The
+        player cannot win while this number is less than the number of mines in
+        the Grid.
+        """
         return self.num_mines - \
                 sum([c.is_found_mine for cs in self.grid for c in cs])
 
@@ -83,6 +217,10 @@ class Grid:
                 self.adjacent_indices(row, col)))
 
     def flag_at(self, row, col):
+        """
+        Put a flag at a specific spot, in response to user input. If the cell
+        is already revealed, this does nothing.
+        """
         if not self.grid[row][col].revealed:
             self.grid[row][col].has_flag = not self.grid[row][col].has_flag
 
